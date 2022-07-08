@@ -43,6 +43,46 @@ bool create_Block_BitMap(FILE *disk,  BootRecord *boot_record){
     return true;
 }
 
+void manage_sector_BitMap(FILE *disk, BootRecord *boot_record, int sector_number, bool new_value){
+
+    // Pega o bit do setor de bitmap
+    unsigned short bit_position = sector_number%8;
+   
+    // Recebe o byte da posição do setor de bitmap
+    byte b = get_byte_sector_BitMap(disk, boot_record, sector_number);
+    // Altera o bit do setor de bitmap
+    b[bit_position] = new_value;
+    cout << "Sector: " << sector_number << " - " << b << endl;
+
+    // Verifica o offset do setor
+    unsigned seek_position = find_offset_sector(1, boot_record->sector_size);
+    unsigned sector_position = seek_position + (sector_number/8);
+
+    //Volta ao setor de bitmap e escreve o byte modificado
+    fseek(disk, sector_position, SEEK_SET);
+    fputc(b.to_ulong(), disk);
+    
+    return;   
+}
+
+byte get_byte_sector_BitMap(FILE *disk,BootRecord *boot_record, int sector_number){
+    // Verifica o offset do setor do bitmap
+    unsigned seek_position = find_offset_sector(1, boot_record->sector_size);
+    // Verifica o offset do byte que possui o dado do setor
+    unsigned sector_position = seek_position + (sector_number/8);
+    // Coloca o ponteiro no byte que possui o dado do setor
+    fseek(disk, sector_position, SEEK_SET);
+    byte b(fgetc(disk));
+    return b;
+}
+
+bool check_sector_BitMap(FILE *disk, BootRecord *boot_record, int sector_number){
+    byte b = get_byte_sector_BitMap(disk, boot_record, sector_number);
+    // Verifica o bit do setor de bitmap
+    unsigned short bit_position = sector_number%8;
+    return b[bit_position];
+}
+
 bool create_Block_DataSection(FILE *disk,  BootRecord *boot_record){
     // Verifica quantos setores o disco pode usar para a área de dados
     unsigned int sector_DataSection = boot_record->total_sectors - boot_record->reserved_sectors;
