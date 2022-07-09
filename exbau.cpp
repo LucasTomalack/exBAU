@@ -1,5 +1,6 @@
 #include "exbau.hpp"
 #include <vector>
+#include <string.h>
 
 BootRecord read_boot_record(FILE *disk){
     BootRecord boot_record;
@@ -134,7 +135,8 @@ void format_disk (FILE *disk){
     write_boot_record(disk, boot_record);
     cout << "Formatado com sucesso" << endl;
 
-
+    //cria diretório raiz
+    alocate_dir(disk, boot_record, 0);
 }
 
 unsigned find_offset_sector(unsigned sector,unsigned short sector_size){
@@ -149,8 +151,74 @@ unsigned int find_offset_bitmap(){
     return 512;
 }
 
+FileFormat new_file_format(const char *filename, const char *ext, char attribute, unsigned int first_sector, unsigned long long int size)
+{
+    FileFormat format;
+    for (int i = 0; i < 15; i++)
+        format.filename[i] = 0x00;
+    for (int i = 0; i < 4; i++)
+        format.ext[i] = 0x00;
+    strcpy(format.filename, filename);
+    strcpy(format.ext, ext);
+    format.attribute = attribute;
+    format.first_sector = first_sector;
+    format.size = size;
+    return format;
+}
+
+unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_dir_sector)
+{
+    unsigned int data_section_sectors = boot_record.total_sectors - boot_record.reserved_sectors;
+    //acessa o bitmap
+    unsigned int available_sector = 0;
+    byte_ B;
+    fseek(disk, find_offset_bitmap(), SEEK_SET);
+    bool k = false;
+    for (int i = 0 ; i < data_section_sectors; i++)
+    {
+        fread(&B, sizeof(byte_), 1, disk);
+        for (short j = 0; j < 8; j++)
+        {
+            if (B[j]==0)
+            {
+                available_sector = j;
+                B[j] = 1;
+                k=true;
+            }
+            if(k)break;
+        }
+        if(k)break;
+    }
+    if(k)
+    {
+        //marca o bitmap 
+        fseek(disk, find_offset_bitmap() + available_sector/8, SEEK_SET);
+        fread(&B, sizeof(byte_), 1, disk);
+        B[available_sector%8] = 1;
+        fseek(disk, find_offset_bitmap() + available_sector/8, SEEK_SET);
+        fwrite(&B, sizeof(byte_),1,disk);
+        //marca o ponteiro no final do setor ocupado pelo novo diretório
+        fseek(disk, find_offset_sector_data(available_sector, boot_record.sector_size, boot_record.reserved_sectors) + 508, SEEK_SET);
+        unsigned int ending_pointer = 0xFFFFFFFF;
+        fwrite(&ending_pointer, sizeof(unsigned int), 1, disk);
+
+        //cria os diretórios para navegação ("." e "..")
+        FileFormat dot = new_file_format(".","",0x20, available_sector, 0);
+        FileFormat dot2 = new_file_format("..","",0x20, prev_dir_sector, 0);
+
+        fseek(disk, find_offset_sector_data(available_sector, boot_record.sector_size, boot_record.reserved_sectors), SEEK_SET);
+
+        fwrite(&dot, sizeof(FileFormat), 1, disk);
+        if(prev_dir_sector>0)
+            fwrite(&dot2, sizeof(FileFormat), 1, disk);
+    }
+
+    return available_sector;
+}
+
 //aloca um arquivo no bitmap e retorna um vetor com seus setores
-vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned long long int file_size){
+vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned long long int file_size)
+{
     unsigned int data_section_sectors = boot_record.total_sectors - boot_record.reserved_sectors;
     unsigned int needed_sectors=file_size/508;
     if(file_size%508)

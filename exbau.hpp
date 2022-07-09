@@ -14,11 +14,11 @@ typedef struct BootRecord
 
 typedef struct FileFormat
 {
-    char filename[21];
+    char filename[15];
     char ext[4];
     char attribute;
-    unsigned short first_sector;
-    unsigned int size;
+    unsigned int first_sector;
+    unsigned long long int size;
 }__attribute__((packed)) FileFormat;
 using namespace std;
 
@@ -55,6 +55,12 @@ unsigned find_offset_sector_data(unsigned int sector, unsigned short sector_size
 
 //Retorna o offset do bitmap
 unsigned int find_offset_bitmap();
+
+//Cria um formato de arquivo a partir dos parâmetros passados
+FileFormat new_file_format(const char *filename, const char *ext, char attribute, unsigned int first_sector, unsigned long long int size);
+
+//aloca um diretório no bitmap e retorna o setor correspondente da seção de dados
+unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_dir_sector);
 
 //Aloca um arquivo no bitmap e retorna um vetor com os setores alocados
 vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned long long int file_size);
