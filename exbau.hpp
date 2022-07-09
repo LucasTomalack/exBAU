@@ -11,7 +11,7 @@ typedef struct BootRecord
     unsigned int total_sectors;
 }__attribute__((packed)) BootRecord;
 
-typedef struct FormatFile
+typedef struct FileFormat
 {
     char filename[21];
     char ext[4];
@@ -22,7 +22,7 @@ typedef struct FormatFile
 using namespace std;
 
 // Define um "tipo"
-typedef bitset<8> byte;
+typedef bitset<8> byte_;
 
 
 bool write_boot_record(FILE *disk, BootRecord *boot_record);
@@ -35,7 +35,7 @@ bool create_Block_BitMap(FILE *disk,  BootRecord *boot_record);
 void manage_sector_BitMap(FILE *disk, BootRecord *boot_record, int sector_number, bool new_value);
 
 // Retorna o byte do setor da seção de dados dentro do BitMap
-byte get_byte_sector_BitMap(FILE *disk,BootRecord *boot_record, int sector_number);
+byte_ get_byte_sector_BitMap(FILE *disk,BootRecord *boot_record, int sector_number);
 
 // Verifica o bit do setor da seção de dados está livre ou não
 bool check_sector_BitMap(FILE *disk, BootRecord *boot_record, int sector_number);
