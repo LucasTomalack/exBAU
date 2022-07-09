@@ -2,6 +2,7 @@
 #include <string>
 #include <cmath>
 #include <bitset>
+#include <vector>
 
 typedef struct BootRecord
 {
@@ -51,3 +52,12 @@ unsigned find_offset_sector(unsigned int sector, unsigned short sector_size);
 
 // Verifica o offset do setor na seção de dados
 unsigned find_offset_sector_data(unsigned int sector, unsigned short sector_size,unsigned reserved_sectors);
+
+//Retorna o offset do bitmap
+unsigned int find_offset_bitmap();
+
+//Aloca um arquivo no bitmap e retorna um vetor com os setores alocados
+vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned long long int file_size);
+
+//copia um arquivo para o sistema de arquivos
+bool copy_file(FILE *disk, BootRecord boot_record, const char *filename);

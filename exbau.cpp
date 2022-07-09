@@ -1,4 +1,5 @@
 #include "exbau.hpp"
+#include <vector>
 
 BootRecord read_boot_record(FILE *disk){
     BootRecord boot_record;
@@ -105,7 +106,7 @@ bool create_Block_DataSection(FILE *disk,  BootRecord *boot_record){
 
 void format_disk (FILE *disk){
     fseek(disk,0,SEEK_END);
-    unsigned long file_size = ftell(disk);
+    unsigned long long int file_size = ftell(disk);
     if(file_size==0){
         printf("Erro: Arquivo vazio\n");
         return;
@@ -142,4 +143,90 @@ unsigned find_offset_sector(unsigned sector,unsigned short sector_size){
 
 unsigned find_offset_sector_data(unsigned sector,unsigned short sector_size,unsigned reserved_sectors){
     return (reserved_sectors+ sector)*sector_size+sector_size;
+}
+
+unsigned int find_offset_bitmap(){
+    return 512;
+}
+
+//aloca um arquivo no bitmap e retorna um vetor com seus setores
+vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned long long int file_size){
+    unsigned int data_section_sectors = boot_record.total_sectors - boot_record.reserved_sectors;
+    unsigned int needed_sectors=file_size/508;
+    if(file_size%508)
+        needed_sectors++;
+    //acessa o bitmap
+    vector<unsigned int> available_sectors;
+    byte_ B;
+    fseek(disk, find_offset_bitmap(), SEEK_SET);
+    for (int i = 0; i < data_section_sectors, available_sectors.size() < needed_sectors; i++)
+    {
+        fread(&B, sizeof(byte_), 1, disk);
+        for (short j = 0; j < 8, available_sectors.size() < needed_sectors; j++)
+        {
+            if(B[j]==0){
+                available_sectors.push_back((i*8)+j);   
+                B[j]=1;
+            }        
+        }
+    }
+
+    if(available_sectors.size()==needed_sectors){
+        for (int i = 0; i < needed_sectors; i++)
+        {
+            fseek(disk, find_offset_bitmap() + available_sectors[i]/8, SEEK_SET);
+            fread(&B, sizeof(byte_), 1, disk);
+            B[available_sectors[i]%8] = 1;
+            fseek(disk, find_offset_bitmap() + available_sectors[i]/8, SEEK_SET);
+            fwrite(&B, sizeof(byte_),1,disk);
+        }
+    }
+    return available_sectors;
+}
+
+bool copy_file(FILE *disk, BootRecord boot_record, const char *filename){
+    //abre o arquivo a ser copiado
+    FILE *file_to_copy = fopen(filename, "r");
+    if(file_to_copy == NULL){
+        cerr << "Erro ao abrir arquivo!" << endl;
+    }
+    // verifica se há espaço disponível para o arquivo no sistema de arquivos
+    fseek(file_to_copy, 0, SEEK_END);
+    unsigned long long int file_size = ftell(file_to_copy);
+    
+    vector<unsigned int> alocated_sectors = alocate_file(disk, boot_record, file_size);
+    unsigned int needed_sectors=file_size/508;
+    if(file_size%508)
+        needed_sectors++;
+    if(alocated_sectors.size() < needed_sectors){
+        cerr << "Não há espaço suficiente para alocar o arquivo" << endl;
+        return false;
+    }
+    
+    //Copia o arquivo para os setores alocados caso exista espaço 
+    fseek(file_to_copy, 0, SEEK_SET);
+    for (int i = 0; i < needed_sectors; i++)
+    {
+        if(i+1 == needed_sectors)//ultimo setor do arquivo
+        {
+            char copied_sector[file_size%508];
+            fread(copied_sector, sizeof(char), file_size%508, file_to_copy);
+            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record.sector_size, boot_record.reserved_sectors), SEEK_SET);
+            fwrite(copied_sector, sizeof(char), file_size%508, disk);
+            unsigned int ending_pointer = 0xFFFFFFFF;
+            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record.sector_size, boot_record.reserved_sectors) + 508, SEEK_SET);
+            fwrite(&ending_pointer, sizeof(unsigned int), 1, disk);
+        }
+        else
+        {
+            char copied_sector[508];//508 bytes para conteudo (4bytes para ponteiro do pŕoximo bloco)
+            fread(copied_sector, sizeof(char), 508, file_to_copy);
+            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record.sector_size, boot_record.reserved_sectors), SEEK_SET);
+            fwrite(copied_sector, sizeof(char), 508, disk);
+            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record.sector_size, boot_record.reserved_sectors) + 508, SEEK_SET);
+            fwrite(&alocated_sectors[i+1], sizeof(unsigned int), 1, disk);
+        }
+    }
+    fclose(file_to_copy);
+    return true;
 }
