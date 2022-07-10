@@ -159,7 +159,7 @@ void format_disk (FILE *disk){
     //Escreve o boot record no disco
     write_boot_record(disk, boot_record);
     //cria diretório raiz
-    alocate_dir(disk, boot_record, 0);
+    alocate_dir(disk, boot_record, 0,"root");
     cout << "Formatado com sucesso" << endl;
 
 }
@@ -259,21 +259,25 @@ FileFormat new_file_format(const char *filename, const char *ext, char attribute
     return format;
 }
 
-unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_dir_sector)
+unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_dir_sector, string directoryname)
 {
     unsigned int data_section_sectors = boot_record.total_sectors - boot_record.reserved_sectors;
     //acessa o bitmap
-    unsigned int available_sector = 0;
     byte_ B;
     //Verifica algum setor livre
-    unsigned int sector_position = find_free_sector(disk, boot_record);
+    unsigned int available_sector = find_free_sector(disk, boot_record);
 
+    if(directoryname.size()>15){
+        cerr << "Nome do diretório muito longo" << endl;
+        return -1;
+    }
 
-    if(sector_position==-1){
-        printf("Erro: Disco cheio\n");
+    if(available_sector==-1){
+        cerr << "Erro: Disco cheio" << endl;
         return 0;
     }
-    manage_sector_BitMap(disk, boot_record, sector_position, true);
+
+    manage_sector_BitMap(disk, boot_record, available_sector, true);
     
     //marca o ponteiro no final do setor ocupado pelo novo diretório
     fseek(disk, find_offset_sector_data(available_sector, boot_record.sector_size, boot_record.reserved_sectors) + 508, SEEK_SET);
@@ -287,8 +291,12 @@ unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_
     fwrite(&dot, sizeof(FileFormat), 1, disk);
 
     //Só vai criar o diretório ".." se o diretório não for o root
-    if(prev_dir_sector>0)
+    if(available_sector!=0){
         fwrite(&dot2, sizeof(FileFormat), 1, disk);
+        
+        FileFormat new_dir = new_file_format(directoryname.c_str(),"",DIRECTORY_ATTRIBUTE, available_sector, 0);
+        alocate_attribute_to_directory(disk, boot_record, prev_dir_sector, &new_dir);
+    }
 
 
 
@@ -421,9 +429,12 @@ void read_sector(FILE *disk, BootRecord boot_record, unsigned int sector_number,
             else if(file_format.attribute==0){
                 continue;
             }
-            cout << "Nome: " << file_format.filename << "." << file_format.ext << endl;
             if(file_format.attribute==FILE_ATTRIBUTE)
+            {
+                cout << "Nome: " << file_format.filename << "." << file_format.ext << endl;
                 cout << "Tamanho: " << file_format.size << " bytes" << endl;
+            }
+            else cout << "Nome: " << file_format.filename << endl;
             cout << "Tipo: " << (file_format.attribute == FILE_ATTRIBUTE ? "Arquivo" : "Diretório") << endl;
             cout << "Setor inicial: " << file_format.first_sector << endl;
             cout << endl;

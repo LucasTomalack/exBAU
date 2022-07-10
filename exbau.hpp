@@ -83,7 +83,7 @@ bool alocate_attribute_to_directory(FILE *disk, BootRecord boot_record, unsigned
 FileFormat new_file_format(const char *filename, const char *ext, char attribute, unsigned int first_sector, unsigned long long int size);
 
 //aloca um diretório no bitmap e retorna o setor correspondente da seção de dados
-unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_dir_sector);
+unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_dir_sector, string directoryname);
 
 //Aloca um arquivo no bitmap e retorna um vetor com os setores alocados
 vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned long long int file_size);
