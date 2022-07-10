@@ -93,3 +93,9 @@ bool copy_file(FILE *disk, BootRecord boot_record,  string filename);
 
 //Faz a leitura de um arquivo/diretório do sistema de arquivos
 void read_sector(FILE *disk, BootRecord boot_record,unsigned int sector_number, bool directory);
+
+/* 
+    Deleta um arquivo/diretório do sistema de arquivos
+    offset deve ser passado o offset dos atributos do arquivo/diretório (para fazer a leitura dos dados)
+*/
+bool delete_file(FILE *disk, BootRecord boot_record, unsigned sector_diretory);

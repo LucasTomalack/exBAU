@@ -297,9 +297,6 @@ unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_
         FileFormat new_dir = new_file_format(directoryname.c_str(),"",DIRECTORY_ATTRIBUTE, available_sector, 0);
         alocate_attribute_to_directory(disk, boot_record, prev_dir_sector, &new_dir);
     }
-
-
-
     return available_sector;
 }
 
@@ -398,6 +395,49 @@ bool copy_file(FILE *disk, BootRecord boot_record,  string filename){
     return true;
 }
 
+bool delete_file(FILE *disk, BootRecord boot_record, unsigned offset){
+    FileFormat data;
+    fseek(disk, offset, SEEK_SET);
+    fread(&data, sizeof(FileFormat), 1, disk);
+
+    //Está tentando apagar o diretório raiz
+    if(data.first_sector==0){
+        return false;
+    }
+
+    vector<unsigned int> sectors_to_delete;
+    sectors_to_delete.push_back(data.first_sector);
+
+
+    //Pega os setores do arquivo/diretório
+    for(int i=1;;i++){
+        unsigned int next_sector_offset = next_sector(disk, boot_record, sectors_to_delete[i-1]);
+
+        //Se não possuir mais setores, sai do loop
+        if(next_sector_offset == LAST_QUEUE_SECTOR)
+            break;
+
+        //Se ele achar algum setor que está marcado como vazio, possivelmente acessou algum lixo
+        if(!check_sector_BitMap(disk, boot_record,next_sector_offset)){
+            return false;
+        }
+        sectors_to_delete.push_back(next_sector_offset);
+    }
+    
+    //Vai liberar os setores alocados
+    for(int i=0;i<sectors_to_delete.size();i++){
+        manage_sector_BitMap(disk, boot_record, sectors_to_delete[i], false);
+    }
+
+    //Deleta o arquivo do diretório
+    fseek(disk, offset, SEEK_SET);
+    data.attribute = DELETED_ATTRIBUTE;
+    data.first_sector=0;
+    fwrite(&data, sizeof(FileFormat), 1, disk);
+
+    return true;
+}
+
 unsigned int next_sector(FILE *disk, BootRecord boot_record, unsigned int sector_number)
 {
     unsigned int next_sector;
@@ -425,10 +465,10 @@ void read_sector(FILE *disk, BootRecord boot_record, unsigned int sector_number,
             if(file_format.attribute==DELETED_ATTRIBUTE){
                 continue;
             }
-            //Condição temporária (deve ser mudada posteriormente)
-            else if(file_format.attribute==0){
-                continue;
+            else if(file_format.attribute==LAST_FILE_ATTRIBUTE){
+                break;
             }
+
             if(file_format.attribute==FILE_ATTRIBUTE)
             {
                 cout << "Nome: " << file_format.filename << "." << file_format.ext << endl;
