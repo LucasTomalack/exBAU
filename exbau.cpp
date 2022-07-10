@@ -54,7 +54,6 @@ void manage_sector_BitMap(FILE *disk, BootRecord *boot_record, int sector_number
     byte_ b = get_byte_sector_BitMap(disk, boot_record, sector_number);
     //Altera o bit do setor de bitmap
     b[bit_position] = new_value;
-    cout << "Sector: " << sector_number << " - " << b << endl;
 
     //Verifica o offset do setor
     unsigned seek_position = find_offset_sector(1, boot_record->sector_size);
@@ -237,29 +236,18 @@ vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned l
     //acessa o bitmap
     vector<unsigned int> available_sectors;
     byte_ B;
-    fseek(disk, find_offset_bitmap(), SEEK_SET);
-    for (int i = 0; i < data_section_sectors, available_sectors.size() < needed_sectors; i++)
-    {
-        fread(&B, sizeof(byte_), 1, disk);
-        for (short j = 0; j < 8, available_sectors.size() < needed_sectors; j++)
-        {
-            if(B[j]==0){
-                available_sectors.push_back((i*8)+j);   
-                B[j]=1;
-            }        
+
+    //Verifica os setores livres para o arquivo
+    for(int i =0;i<needed_sectors;i++){
+        //Verifica algum setor livre
+        unsigned int sector_position = find_free_sector(disk, &boot_record);
+        if(sector_position==-1){
+            return available_sectors;
         }
+        available_sectors.push_back(sector_position);
+        manage_sector_BitMap(disk, &boot_record, sector_position, true);
     }
 
-    if(available_sectors.size()==needed_sectors){
-        for (int i = 0; i < needed_sectors; i++)
-        {
-            fseek(disk, find_offset_bitmap() + available_sectors[i]/8, SEEK_SET);
-            fread(&B, sizeof(byte_), 1, disk);
-            B[available_sectors[i]%8] = 1;
-            fseek(disk, find_offset_bitmap() + available_sectors[i]/8, SEEK_SET);
-            fwrite(&B, sizeof(byte_),1,disk);
-        }
-    }
     return available_sectors;
 }
 
