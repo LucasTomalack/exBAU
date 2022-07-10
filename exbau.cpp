@@ -134,7 +134,7 @@ void format_disk (FILE *disk){
     fseek(disk,0,SEEK_END);
     unsigned long long int file_size = ftell(disk);
     if(file_size==0){
-        printf("Erro: Arquivo vazio\n");
+        cerr << "Erro: Arquivo vazio" << endl;
         return;
     }
 
@@ -149,17 +149,31 @@ void format_disk (FILE *disk){
     boot_record.volume_size = file_size;
 
     if(boot_record.total_sectors<0){
-        printf("O sistema necessita ao menos 3 setores\n");
+        cerr << "O sistema necessita ao menos 3 setores" << endl;
         return;
     }
     //Cria o bloco de BitMap
-    create_Block_BitMap(disk, &boot_record);
+    if(!create_Block_BitMap(disk, &boot_record))
+    {
+        cerr << "Erro ao criar o bloco de BitMap" << endl;
+        return;
+    }
     //Cria o bloco de dados
-    create_Block_DataSection(disk, &boot_record);
+    if(!create_Block_DataSection(disk, &boot_record)){
+        cerr << "Erro ao criar o bloco de dados" << endl;
+        return;
+    }
     //Escreve o boot record no disco
-    write_boot_record(disk, boot_record);
+    if(!write_boot_record(disk, boot_record)){
+        cerr << "Erro ao escrever o boot record" << endl;
+        return;
+    }
     //cria diretório raiz
-    alocate_dir(disk, boot_record, 0,"root");
+    if(alocate_dir(disk, boot_record, 0,"root")!=0){
+        cerr << "Erro ao criar o diretório raiz" << endl;
+        return;
+    }
+
     cout << "Formatado com sucesso" << endl;
 
 }
@@ -179,7 +193,7 @@ unsigned int find_offset_bitmap(){
 unsigned alocate_new_sector_directory(FILE *disk, BootRecord boot_record,unsigned last_sector){
     unsigned new_sector = find_free_sector(disk, boot_record);
     if(new_sector == -1){
-        printf("Não há espaço suficiente para alocar o diretório\n");
+        cerr << "Não há espaço suficiente para alocar o diretório" << endl;
         return -1;
     }
     manage_sector_BitMap(disk, boot_record, new_sector, true);
