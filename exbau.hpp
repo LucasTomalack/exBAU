@@ -18,7 +18,7 @@ typedef struct FileFormat
 {
     char filename[15];
     char ext[4];
-    char attribute;
+    unsigned char attribute;
     Sector first_sector;
     unsigned long long int size;
 }__attribute__((packed)) FileFormat;
