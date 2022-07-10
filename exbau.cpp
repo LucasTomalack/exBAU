@@ -348,6 +348,10 @@ bool copy_file(FILE *disk, BootRecord boot_record,  string filename){
         needed_sectors++;
     if(alocated_sectors.size() < needed_sectors){
         cerr << "Não há espaço suficiente para alocar o arquivo" << endl;
+        //Vai liberar os setores alocados
+        for(int i=0;i<alocated_sectors.size();i++){
+            manage_sector_BitMap(disk, boot_record, alocated_sectors[i], false);
+        }
         return false;
     }
     
