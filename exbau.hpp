@@ -75,3 +75,6 @@ vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned l
 
 //copia um arquivo para o sistema de arquivos
 bool copy_file(FILE *disk, BootRecord boot_record, const char *filename);
+
+//Faz a leitura de um arquivo/diretório do sistema de arquivos
+void read_sector(FILE *disk, BootRecord boot_record,unsigned int sector_number, bool directory);

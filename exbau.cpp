@@ -310,3 +310,54 @@ bool copy_file(FILE *disk, BootRecord boot_record, const char *filename){
     return true;
 }
 
+void read_sector(FILE *disk, BootRecord boot_record, unsigned int sector_number, bool directory){
+    //Verifica o offset do setor e acessa o arquivo/diretório
+    unsigned int offset = find_offset_sector_data(sector_number, boot_record.sector_size, boot_record.reserved_sectors);
+    fseek(disk, offset, SEEK_SET);
+
+    //Responsável por apontar o ponteiro para o final setor para ver o número do próximo setor
+    unsigned short offset_pointer = boot_record.sector_size - sizeof(unsigned int);
+    if(directory){
+        int directories_count = boot_record.sector_size/sizeof(FileFormat);
+        for(int i =0;i<directories_count;i++){
+            FileFormat file_format;
+            fread(&file_format, sizeof(FileFormat), 1, disk);
+            
+            //Se for um arquivo deletado, ele ignora o arquivo
+            if(file_format.attribute==DELETED_ATTRIBUTE){
+                continue;
+            }
+            //Condição temporária (deve ser mudada posteriormente)
+            else if(file_format.attribute==0){
+                continue;
+            }
+            cout << "Nome: " << file_format.filename << file_format.ext << endl;
+            cout << "Tamanho: " << file_format.size << endl;
+            cout << (file_format.attribute == FILE_ATTRIBUTE ? "Arquivo" : "Diretório") << endl;
+
+        }
+
+    }
+    else{
+        char content;
+        //Lê byte a byte do arquivo e imprime na tela
+        for(int i =0;i<offset_pointer;i++){
+            fread(&content, sizeof(char), 1, disk);
+            cout << content;
+        }
+        cout << endl;
+    }
+
+    
+    //Posiciona o ponteiro no final do setor para ver o número do próximo setor
+    fseek(disk, offset + offset_pointer, SEEK_SET);
+    
+    //Lê o número do próximo setor
+    unsigned int next_sector;
+    fread(&next_sector, sizeof(unsigned int), 1, disk);
+
+    //Se tiver outro setor, chama a função novamente para ler o próximo setor
+    if(next_sector!=0xFFFFFFFF){
+        read_sector(disk, boot_record, next_sector, directory);
+    }
+}
