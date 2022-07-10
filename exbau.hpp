@@ -22,7 +22,12 @@ typedef struct FileFormat
 }__attribute__((packed)) FileFormat;
 using namespace std;
 
-// Define um "tipo"
+//Auxiliar para os atributos dos arquivos
+#define FILE_ATTRIBUTE 0x20
+#define DIRECTORY_ATTRIBUTE 0x10
+#define DELETED_ATTRIBUTE 0xFF
+
+//Define um "tipo"
 typedef bitset<8> byte_;
 
 
@@ -30,27 +35,30 @@ bool write_boot_record(FILE *disk, BootRecord *boot_record);
 
 BootRecord read_boot_record(FILE *disk);
 
-// Cria o bloco de BitMap
+//Cria o bloco de BitMap
 bool create_Block_BitMap(FILE *disk,  BootRecord *boot_record);
 
 void manage_sector_BitMap(FILE *disk, BootRecord *boot_record, int sector_number, bool new_value);
 
-// Retorna o byte do setor da seção de dados dentro do BitMap
+//Retorna o byte do setor da seção de dados dentro do BitMap
 byte_ get_byte_sector_BitMap(FILE *disk,BootRecord *boot_record, int sector_number);
 
-// Verifica o bit do setor da seção de dados está livre ou não
+//Verifica o bit do setor da seção de dados está livre ou não
 bool check_sector_BitMap(FILE *disk, BootRecord *boot_record, int sector_number);
 
-// Cria o bloco de dados
+//Retorna o número do primeiro setor livre
+unsigned int find_free_sector(FILE *disk, BootRecord *boot_record);
+
+//Cria o bloco de dados
 bool create_Block_DataSection(FILE *disk,  BootRecord *boot_record);
 
-// Responsável por formatar o disco
+//Responsável por formatar o disco
 void format_disk(FILE *disk);
 
-// Verifica o offset do setor
+//Verifica o offset do setor
 unsigned find_offset_sector(unsigned int sector, unsigned short sector_size);
 
-// Verifica o offset do setor na seção de dados
+//Verifica o offset do setor na seção de dados
 unsigned find_offset_sector_data(unsigned int sector, unsigned short sector_size,unsigned reserved_sectors);
 
 //Retorna o offset do bitmap

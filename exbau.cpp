@@ -16,17 +16,17 @@ bool write_boot_record(FILE *disk, BootRecord boot_record){
 }
 
 bool create_Block_BitMap(FILE *disk,  BootRecord *boot_record){
-    // Verifica quantos setores da seção de dados pode ser mapeado em um setor de bitmap
+    //Verifica quantos setores da seção de dados pode ser mapeado em um setor de bitmap
     int t = 8 * boot_record->sector_size;
 
     //Remove um setor para o boot record
     int total_sectors = boot_record->total_sectors -1;
 
-    // Verifica o número de setores que serão mapeados em um setor de bitmap
+    //Verifica o número de setores que serão mapeados em um setor de bitmap
     int sector_to_ManagerFree= round(total_sectors/t);
 
-    // Se o disco for muito pequeno a fórmula pode dar erro
-    // Caso seja o caso, automaticamente será setado um setor para o gerenciamento de espaço livre
+    //Se o disco for muito pequeno a fórmula pode dar erro
+    //Caso seja o caso, automaticamente será setado um setor para o gerenciamento de espaço livre
     if(sector_to_ManagerFree == 0){
         sector_to_ManagerFree = 1;
     }
@@ -47,16 +47,16 @@ bool create_Block_BitMap(FILE *disk,  BootRecord *boot_record){
 
 void manage_sector_BitMap(FILE *disk, BootRecord *boot_record, int sector_number, bool new_value){
 
-    // Pega o bit do setor de bitmap
+    //Pega o bit do setor de bitmap
     unsigned short bit_position = sector_number%8;
    
-    // Recebe o byte da posição do setor de bitmap
+    //Recebe o byte da posição do setor de bitmap
     byte_ b = get_byte_sector_BitMap(disk, boot_record, sector_number);
-    // Altera o bit do setor de bitmap
+    //Altera o bit do setor de bitmap
     b[bit_position] = new_value;
     cout << "Sector: " << sector_number << " - " << b << endl;
 
-    // Verifica o offset do setor
+    //Verifica o offset do setor
     unsigned seek_position = find_offset_sector(1, boot_record->sector_size);
     unsigned sector_position = seek_position + (sector_number/8);
 
@@ -67,12 +67,38 @@ void manage_sector_BitMap(FILE *disk, BootRecord *boot_record, int sector_number
     return;   
 }
 
+unsigned int find_free_sector(FILE *disk, BootRecord *boot_record){
+    unsigned int offset_bitmap = find_offset_bitmap();
+    byte_ b; 
+    
+    //Auxiliar para verificar se não está acessando um setor que não existe
+    unsigned int max_sectors_data = boot_record->total_sectors - boot_record->reserved_sectors;
+
+    //Posiciona o ponteiro no setor de bitmap
+    fseek(disk, offset_bitmap, SEEK_SET);
+    for(int i=0; i<max_sectors_data; i++){
+        unsigned c = fgetc(disk);
+        //Caso um byte seja igual a F, significa que todos os bits estão "ativados" (ocupados)
+        if(c == 0xFF){
+            continue;
+        }
+        b = c;
+        //Vai buscar o bit que está livre
+        for(int j=0; j<8; j++){
+            if(b[j] == false){
+                return i*8+j;
+            }
+        }
+    }
+    return -1;
+}
+
 byte_ get_byte_sector_BitMap(FILE *disk,BootRecord *boot_record, int sector_number){
-    // Verifica o offset do setor do bitmap
+    //Verifica o offset do setor do bitmap
     unsigned seek_position = find_offset_sector(1, boot_record->sector_size);
-    // Verifica o offset do byte que possui o dado do setor
+    //Verifica o offset do byte que possui o dado do setor
     unsigned sector_position = seek_position + (sector_number/8);
-    // Coloca o ponteiro no byte que possui o dado do setor
+    //Coloca o ponteiro no byte que possui o dado do setor
     fseek(disk, sector_position, SEEK_SET);
     byte_ b(fgetc(disk));
     return b;
@@ -80,16 +106,16 @@ byte_ get_byte_sector_BitMap(FILE *disk,BootRecord *boot_record, int sector_numb
 
 bool check_sector_BitMap(FILE *disk, BootRecord *boot_record, int sector_number){
     byte_ b = get_byte_sector_BitMap(disk, boot_record, sector_number);
-    // Verifica o bit do setor de bitmap
+    //Verifica o bit do setor de bitmap
     unsigned short bit_position = sector_number%8;
     return b[bit_position];
 }
 
 bool create_Block_DataSection(FILE *disk,  BootRecord *boot_record){
-    // Verifica quantos setores o disco pode usar para a área de dados
+    //Verifica quantos setores o disco pode usar para a área de dados
     unsigned int sector_DataSection = boot_record->total_sectors - boot_record->reserved_sectors;
 
-    // Calcula a posição do setor de dados
+    //Calcula a posição do setor de dados
     int seek_position = find_offset_sector(boot_record->reserved_sectors, boot_record->sector_size);  
 
     //Criando o bloco de dados
@@ -97,7 +123,7 @@ bool create_Block_DataSection(FILE *disk,  BootRecord *boot_record){
 
     for(int i=0; i<sector_DataSection; i++){
         for(int j=1; j<=boot_record->sector_size; j++){
-            // Insere o byte zerado
+            //Insere o byte zerado
             fputc(0, disk);
             
         }
@@ -116,7 +142,7 @@ void format_disk (FILE *disk){
     cout << "Formatando... por favor, aguarde!" << endl;
     BootRecord boot_record;
     boot_record.sector_size = 512;
-    // Calcula o total de setores
+    //Calcula o total de setores
     if(file_size%boot_record.sector_size)
         boot_record.total_sectors = (file_size/boot_record.sector_size)+1;
     else
@@ -127,16 +153,16 @@ void format_disk (FILE *disk){
         printf("O sistema necessita ao menos 3 setores\n");
         return;
     }
-    // Cria o bloco de BitMap
+    //Cria o bloco de BitMap
     create_Block_BitMap(disk, &boot_record);
-    // Cria o bloco de dados
+    //Cria o bloco de dados
     create_Block_DataSection(disk, &boot_record);
-    // Escreve o boot record no disco
+    //Escreve o boot record no disco
     write_boot_record(disk, boot_record);
-    cout << "Formatado com sucesso" << endl;
-
     //cria diretório raiz
     alocate_dir(disk, boot_record, 0);
+    cout << "Formatado com sucesso" << endl;
+
 }
 
 unsigned find_offset_sector(unsigned sector,unsigned short sector_size){
@@ -172,46 +198,31 @@ unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_
     //acessa o bitmap
     unsigned int available_sector = 0;
     byte_ B;
-    fseek(disk, find_offset_bitmap(), SEEK_SET);
-    bool k = false;
-    for (int i = 0 ; i < data_section_sectors; i++)
-    {
-        fread(&B, sizeof(byte_), 1, disk);
-        for (short j = 0; j < 8; j++)
-        {
-            if (B[j]==0)
-            {
-                available_sector = j;
-                B[j] = 1;
-                k=true;
-            }
-            if(k)break;
-        }
-        if(k)break;
+    //Verifica algum setor livre
+    unsigned int sector_position = find_free_sector(disk, &boot_record);
+
+
+    if(sector_position==-1){
+        printf("Erro: Disco cheio\n");
+        return 0;
     }
-    if(k)
-    {
-        //marca o bitmap 
-        fseek(disk, find_offset_bitmap() + available_sector/8, SEEK_SET);
-        fread(&B, sizeof(byte_), 1, disk);
-        B[available_sector%8] = 1;
-        fseek(disk, find_offset_bitmap() + available_sector/8, SEEK_SET);
-        fwrite(&B, sizeof(byte_),1,disk);
-        //marca o ponteiro no final do setor ocupado pelo novo diretório
-        fseek(disk, find_offset_sector_data(available_sector, boot_record.sector_size, boot_record.reserved_sectors) + 508, SEEK_SET);
-        unsigned int ending_pointer = 0xFFFFFFFF;
-        fwrite(&ending_pointer, sizeof(unsigned int), 1, disk);
+    manage_sector_BitMap(disk, &boot_record, sector_position, true);
+    
+    //marca o ponteiro no final do setor ocupado pelo novo diretório
+    fseek(disk, find_offset_sector_data(available_sector, boot_record.sector_size, boot_record.reserved_sectors) + 508, SEEK_SET);
+    unsigned int ending_pointer = 0xFFFFFFFF;
+    fwrite(&ending_pointer, sizeof(unsigned int), 1, disk);
 
-        //cria os diretórios para navegação ("." e "..")
-        FileFormat dot = new_file_format(".","",0x20, available_sector, 0);
-        FileFormat dot2 = new_file_format("..","",0x20, prev_dir_sector, 0);
+    //cria os diretórios para navegação ("." e "..")
+    FileFormat dot = new_file_format(".","",0x10, available_sector, 0);
+    FileFormat dot2 = new_file_format("..","",0x10, prev_dir_sector, 0);
+    fseek(disk, find_offset_sector_data(available_sector, boot_record.sector_size, boot_record.reserved_sectors), SEEK_SET);
+    fwrite(&dot, sizeof(FileFormat), 1, disk);
 
-        fseek(disk, find_offset_sector_data(available_sector, boot_record.sector_size, boot_record.reserved_sectors), SEEK_SET);
-
-        fwrite(&dot, sizeof(FileFormat), 1, disk);
-        if(prev_dir_sector>0)
-            fwrite(&dot2, sizeof(FileFormat), 1, disk);
-    }
+    //Só vai criar o diretório ".." se o diretório não for o root
+    if(prev_dir_sector>0)
+        fwrite(&dot2, sizeof(FileFormat), 1, disk);
+    
 
     return available_sector;
 }
@@ -258,7 +269,7 @@ bool copy_file(FILE *disk, BootRecord boot_record, const char *filename){
     if(file_to_copy == NULL){
         cerr << "Erro ao abrir arquivo!" << endl;
     }
-    // verifica se há espaço disponível para o arquivo no sistema de arquivos
+    //verifica se há espaço disponível para o arquivo no sistema de arquivos
     fseek(file_to_copy, 0, SEEK_END);
     unsigned long long int file_size = ftell(file_to_copy);
     
@@ -298,3 +309,4 @@ bool copy_file(FILE *disk, BootRecord boot_record, const char *filename){
     fclose(file_to_copy);
     return true;
 }
+
