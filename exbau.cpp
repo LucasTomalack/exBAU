@@ -67,7 +67,7 @@ void manage_sector_BitMap(FILE *disk, BootRecord boot_record, int sector_number,
 }
 
 unsigned int find_free_sector(FILE *disk, BootRecord boot_record){
-    unsigned int offset_bitmap = find_offset_bitmap();
+    unsigned int offset_bitmap = find_offset_sector(1,boot_record.sector_size);
     byte_ b; 
     
     //Auxiliar para verificar se não está acessando um setor que não existe
@@ -116,7 +116,6 @@ bool create_Block_DataSection(FILE *disk,  BootRecord *boot_record){
 
     //Calcula a posição do setor de dados
     int seek_position = find_offset_sector(boot_record->reserved_sectors, boot_record->sector_size);  
-
     //Criando o bloco de dados
     fseek(disk, seek_position, SEEK_SET);
 
@@ -130,17 +129,28 @@ bool create_Block_DataSection(FILE *disk,  BootRecord *boot_record){
     return true;
 }
 
-void format_disk (FILE *disk){
+void format_disk (FILE *disk,unsigned number_sectors){
     fseek(disk,0,SEEK_END);
-    unsigned long long int file_size = ftell(disk);
+    unsigned long long int file_size;
+
+    BootRecord boot_record;
+    boot_record.sector_size = 512;
+
+    if(number_sectors==0){
+       file_size = ftell(disk); 
+    }
+    else file_size = (number_sectors*boot_record.sector_size);
+    
     if(file_size==0){
         cerr << "Erro: Arquivo vazio" << endl;
+        return;
+    }else if(file_size>ftell(disk)){
+        cerr << "Maior número de setores que o próprio tamanho do arquivo" << endl;
         return;
     }
 
     cout << "Formatando... por favor, aguarde!" << endl;
-    BootRecord boot_record;
-    boot_record.sector_size = 512;
+    
     //Calcula o total de setores
     if(file_size%boot_record.sector_size)
         boot_record.total_sectors = (file_size/boot_record.sector_size)+1;
@@ -148,7 +158,7 @@ void format_disk (FILE *disk){
         boot_record.total_sectors = file_size/boot_record.sector_size;
     boot_record.volume_size = file_size;
 
-    if(boot_record.total_sectors<0){
+    if(boot_record.total_sectors<3){
         cerr << "O sistema necessita ao menos 3 setores" << endl;
         return;
     }
@@ -182,12 +192,8 @@ unsigned find_offset_sector(unsigned sector,unsigned short sector_size){
     return sector*sector_size;
 }
 
-unsigned find_offset_sector_data(unsigned sector,unsigned short sector_size,unsigned reserved_sectors){
-    return (reserved_sectors+ sector)*sector_size+sector_size;
-}
-
-unsigned int find_offset_bitmap(){
-    return 512;
+unsigned find_offset_sector_data(unsigned sector,BootRecord boot_record){
+    return (boot_record.reserved_sectors+ sector)*boot_record.sector_size;
 }
 
 unsigned alocate_new_sector_directory(FILE *disk, BootRecord boot_record,unsigned last_sector){
@@ -199,12 +205,12 @@ unsigned alocate_new_sector_directory(FILE *disk, BootRecord boot_record,unsigne
     manage_sector_BitMap(disk, boot_record, new_sector, true);
 
     //Vai apontar o setor antigo para o novo setor
-    unsigned int offset_last_sector_pointer = find_offset_sector_data(last_sector, boot_record.sector_size, boot_record.reserved_sectors) + (boot_record.sector_size-sizeof(unsigned int));
+    unsigned int offset_last_sector_pointer = find_offset_sector_data(last_sector, boot_record) + (boot_record.sector_size-sizeof(unsigned int));
     fseek(disk, offset_last_sector_pointer, SEEK_SET);
     fwrite(&new_sector, sizeof(unsigned int), 1, disk);
 
     //Vai marcar que aquele setor é o final da "lista"
-    unsigned int offset_new_sector_pointer = find_offset_sector_data(new_sector, boot_record.sector_size, boot_record.reserved_sectors) + (boot_record.sector_size-sizeof(unsigned int));
+    unsigned int offset_new_sector_pointer = find_offset_sector_data(new_sector, boot_record) + (boot_record.sector_size-sizeof(unsigned int));
     fseek(disk, offset_new_sector_pointer, SEEK_SET);
     unsigned int next_sector = LAST_QUEUE_SECTOR;
     fwrite(&next_sector, sizeof(unsigned int), 1, disk);
@@ -213,7 +219,7 @@ unsigned alocate_new_sector_directory(FILE *disk, BootRecord boot_record,unsigne
 }
 
 unsigned find_offset_free_directory(FILE *disk, BootRecord boot_record, unsigned sector_number){
-    unsigned offset = find_offset_sector_data(sector_number, boot_record.sector_size, boot_record.reserved_sectors);
+    unsigned offset = find_offset_sector_data(sector_number, boot_record);
     fseek(disk, offset, SEEK_SET);
     unsigned int max_entries = (boot_record.sector_size-sizeof(unsigned int))/sizeof(FileFormat);
 
@@ -225,6 +231,12 @@ unsigned find_offset_free_directory(FILE *disk, BootRecord boot_record, unsigned
         }
     }
     return -1;
+}
+
+unsigned find_offset_attribute_file(FILE *disk, BootRecord boot_record,unsigned sector_number_dir, unsigned short pos_file){
+    unsigned offset_dir = find_offset_sector_data(sector_number_dir,boot_record);
+    return offset_dir + (sizeof(FileFormat) * (pos_file-1));
+    
 }
 
 bool alocate_attribute_to_directory(FILE *disk, BootRecord boot_record, unsigned int sector_number, FileFormat *file_format){
@@ -280,7 +292,6 @@ unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_
     byte_ B;
     //Verifica algum setor livre
     unsigned int available_sector = find_free_sector(disk, boot_record);
-
     if(directoryname.size()>15){
         cerr << "Nome do diretório muito longo" << endl;
         return -1;
@@ -291,17 +302,18 @@ unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_
         return 0;
     }
 
+    //Marca como ocupado
     manage_sector_BitMap(disk, boot_record, available_sector, true);
-    
+
     //marca o ponteiro no final do setor ocupado pelo novo diretório
-    fseek(disk, find_offset_sector_data(available_sector, boot_record.sector_size, boot_record.reserved_sectors) + 508, SEEK_SET);
+    fseek(disk, find_offset_sector_data(available_sector, boot_record) + 508, SEEK_SET);
     unsigned int ending_pointer = LAST_QUEUE_SECTOR;
     fwrite(&ending_pointer, sizeof(unsigned int), 1, disk);
 
     //cria os diretórios para navegação ("." e "..")
     FileFormat dot = new_file_format(".","",0x10, available_sector, 0);
     FileFormat dot2 = new_file_format("..","",0x10, prev_dir_sector, 0);
-    fseek(disk, find_offset_sector_data(available_sector, boot_record.sector_size, boot_record.reserved_sectors), SEEK_SET);
+    fseek(disk, find_offset_sector_data(available_sector, boot_record), SEEK_SET);
     fwrite(&dot, sizeof(FileFormat), 1, disk);
 
     //Só vai criar o diretório ".." se o diretório não for o root
@@ -340,7 +352,7 @@ vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned l
     return available_sectors;
 }
 
-bool copy_file(FILE *disk, BootRecord boot_record,  string filename){
+bool copy_file_to_exBAU(FILE *disk, BootRecord boot_record,  string filename){
     //Vai separar o nome com a extensão do arquivo
     string file_name = filename.substr(0, filename.find_last_of("."));
     string file_extension = filename.substr(filename.find_last_of(".")+1);
@@ -383,19 +395,19 @@ bool copy_file(FILE *disk, BootRecord boot_record,  string filename){
         {
             char copied_sector[file_size%508];
             fread(copied_sector, sizeof(char), file_size%508, file_to_copy);
-            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record.sector_size, boot_record.reserved_sectors), SEEK_SET);
+            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record), SEEK_SET);
             fwrite(copied_sector, sizeof(char), file_size%508, disk);
             unsigned int ending_pointer = LAST_QUEUE_SECTOR;
-            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record.sector_size, boot_record.reserved_sectors) + 508, SEEK_SET);
+            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record) + 508, SEEK_SET);
             fwrite(&ending_pointer, sizeof(unsigned int), 1, disk);
         }
         else
         {
             char copied_sector[508];//508 bytes para conteudo (4bytes para ponteiro do pŕoximo bloco)
             fread(copied_sector, sizeof(char), 508, file_to_copy);
-            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record.sector_size, boot_record.reserved_sectors), SEEK_SET);
+            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record), SEEK_SET);
             fwrite(copied_sector, sizeof(char), 508, disk);
-            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record.sector_size, boot_record.reserved_sectors) + 508, SEEK_SET);
+            fseek(disk, find_offset_sector_data(alocated_sectors[i], boot_record) + 508, SEEK_SET);
             fwrite(&alocated_sectors[i+1], sizeof(unsigned int), 1, disk);
         }
     }
@@ -405,7 +417,54 @@ bool copy_file(FILE *disk, BootRecord boot_record,  string filename){
     
     FileFormat data = new_file_format(file_name.c_str(), file_extension.c_str(), FILE_ATTRIBUTE, alocated_sectors[0], file_size);
     bool a = alocate_attribute_to_directory(disk,boot_record,0,&data);
-    cout << a << endl;
+    return true;
+}
+
+bool copy_file_to_system(FILE *disk, BootRecord boot_record,unsigned offset_file, string filename){
+    FileFormat data;
+
+    fseek(disk,offset_file,SEEK_SET);
+    fread(&data,sizeof(FileFormat),1,disk);
+    FILE *disk2 = fopen(filename.c_str(),"w+");
+
+    if(disk2==NULL){
+        cerr << "Erro ao copiar o arquivo" << endl;
+        return false;
+    }
+
+    unsigned long long size_restant = data.size;
+
+    char c;
+    //Variável para economizar ficar realizando os cálculos
+    size_t size_char = sizeof(char);
+
+    //Verifica até onde pode fazer a leitura
+    unsigned pointer = boot_record.sector_size - sizeof(unsigned int);
+
+    //Responsável por indicar o setor para fazer a leitura
+    unsigned next_sector_offset = data.first_sector;
+
+    for(;size_restant>0;){
+        //Posiciona o ponteiro no local
+        fseek(disk,find_offset_sector_data(next_sector_offset,boot_record),SEEK_SET);
+        for(int i=0;i<pointer && size_restant>0;i++,size_restant--){
+            fread(&c,size_char,1,disk);
+            fwrite(&c,size_char,1,disk2);
+        }
+
+        //Recebe o próximo ponteiro para ler        
+        next_sector_offset = next_sector(disk,boot_record,next_sector_offset);
+
+        //Se chegou no último setor e não conseguiu ler todo o arquivo, então ocorreu algum erro
+        if(next_sector_offset==LAST_QUEUE_SECTOR && size_restant>0){
+            cerr << "Algum erro ocorreu ao copiar o arquivo" << endl;
+            fclose(disk2);
+            return false;
+        }
+        
+    }
+
+    fclose(disk2);
     return true;
 }
 
@@ -455,16 +514,15 @@ bool delete_file(FILE *disk, BootRecord boot_record, unsigned offset){
 unsigned int next_sector(FILE *disk, BootRecord boot_record, unsigned int sector_number)
 {
     unsigned int next_sector;
-    unsigned int offset = find_offset_sector_data(sector_number, boot_record.sector_size, boot_record.reserved_sectors);
+    unsigned int offset = find_offset_sector_data(sector_number, boot_record);
     unsigned short offset_pointer = boot_record.sector_size - sizeof(unsigned int);
     fseek(disk, offset + offset_pointer, SEEK_SET);
     fread(&next_sector, sizeof(unsigned int), 1, disk);
     return next_sector;
 }
 
-void read_sector(FILE *disk, BootRecord boot_record, unsigned int sector_number, bool directory){
+void read_sector(FILE *disk, BootRecord boot_record, unsigned int offset, bool directory){
     //Verifica o offset do setor e acessa o arquivo/diretório
-    unsigned int offset = find_offset_sector_data(sector_number, boot_record.sector_size, boot_record.reserved_sectors);
     fseek(disk, offset, SEEK_SET);
 
     //Responsável por apontar o ponteiro para o final setor para ver o número do próximo setor
@@ -496,6 +554,11 @@ void read_sector(FILE *disk, BootRecord boot_record, unsigned int sector_number,
 
     }
     else{
+        FileFormat file_format;
+        fread(&file_format,sizeof(FileFormat),1,disk);
+        unsigned long long size_restant = file_format.size;
+
+
         char content;
         //Lê byte a byte do arquivo e imprime na tela
         for(int i =0;i<offset_pointer;i++){
@@ -516,5 +579,92 @@ void read_sector(FILE *disk, BootRecord boot_record, unsigned int sector_number,
     //Se tiver outro setor, chama a função novamente para ler o próximo setor
     if(next_sector!=LAST_QUEUE_SECTOR){
         read_sector(disk, boot_record, next_sector, directory);
+    }
+}
+
+
+void read_sector(FILE *disk, BootRecord boot_record, unsigned sector_dir,unsigned short pos_file){
+    //Responsável por apontar o ponteiro para o final setor para ver o número do próximo setor
+    unsigned short offset_pointer = boot_record.sector_size - sizeof(unsigned int);
+    if(pos_file==0){
+        //Posiciona o ponteiro
+        fseek(disk,find_offset_sector_data(sector_dir,boot_record),SEEK_SET);
+
+        //Verifica o número máximo de arquivos/diretórios em um setor
+        unsigned short directories_count_max = (boot_record.sector_size-sizeof(unsigned int))/sizeof(FileFormat);
+        for(int i =0;i<directories_count_max;i++){
+            FileFormat file_format;
+            fread(&file_format, sizeof(FileFormat), 1, disk);
+            
+            //Se for um arquivo deletado, ele ignora o arquivo
+            if(file_format.attribute==DELETED_ATTRIBUTE){
+                continue;
+            }
+            else if(file_format.attribute==LAST_FILE_ATTRIBUTE){
+                break;
+            }
+
+            if(file_format.attribute==FILE_ATTRIBUTE)
+            {
+                cout << "Nome: " << file_format.filename << "." << file_format.ext << endl;
+                cout << "Tamanho: " << file_format.size << " bytes" << endl;
+            }
+            else cout << "Nome: " << file_format.filename << endl;
+            cout << "Tipo: " << (file_format.attribute == FILE_ATTRIBUTE ? "Arquivo" : "Diretório") << endl;
+            cout << "Setor inicial: " << file_format.first_sector << endl;
+            cout << endl;
+        }
+        unsigned next_sector_number = next_sector(disk,boot_record,sector_dir);
+        if(next_sector_number!=LAST_QUEUE_SECTOR)
+            return read_sector(disk,boot_record,next_sector_number,pos_file);
+        
+        else return;
+    }
+    else{
+        unsigned offset_file = find_offset_attribute_file(disk, boot_record,sector_dir, pos_file);
+        FileFormat data;
+        //Lê o arquivo
+        fseek(disk, offset_file, SEEK_SET);
+        fread(&data, sizeof(FileFormat), 1, disk);
+
+        if(data.attribute==DELETED_ATTRIBUTE){
+            return;
+        }
+
+        //Verifica até onde pode fazer a leitura do seto
+        unsigned max_read_per_sector = boot_record.sector_size-sizeof(unsigned int);
+
+        //Verifica o tamanho do arquivo que falta ler
+        unsigned long long restant_size = data.size;
+
+        unsigned next_sector_offset = data.first_sector;
+
+        char c;
+        size_t size_char = sizeof(char);
+        while(true){
+            //Posiciona no setor
+            fseek(disk,find_offset_sector_data(next_sector_offset,boot_record),SEEK_SET);
+            
+            //Faz a leitura de cada caractere e imprime
+            for(int i =0 ;i<max_read_per_sector && restant_size>0;i++,restant_size--){
+                fread(&c,size_char,1,disk);
+                cout << c;
+            }
+
+            //Se chegar ao fina ele encerra a leitura
+            if(restant_size==0){
+                break;
+            }
+
+            next_sector_offset = next_sector(disk,boot_record,next_sector_offset);
+
+            //Se não possuir mais setores para ler, também encerra
+            if(next_sector_offset==LAST_QUEUE_SECTOR){
+                break;
+            }
+
+        }   
+        cout << endl;
+        return;
     }
 }

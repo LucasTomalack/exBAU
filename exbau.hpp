@@ -59,7 +59,7 @@ unsigned int find_free_sector(FILE *disk, BootRecord boot_record);
 bool create_Block_DataSection(FILE *disk,  BootRecord *boot_record);
 
 //Responsável por formatar o disco
-void format_disk(FILE *disk);
+void format_disk(FILE *disk,unsigned number_sectors);
 
 //Verifica o próximo ponteiro da lista
 unsigned int next_sector(FILE *disk, BootRecord boot_record, unsigned int sector_number);
@@ -68,13 +68,13 @@ unsigned int next_sector(FILE *disk, BootRecord boot_record, unsigned int sector
 unsigned find_offset_sector(unsigned int sector, unsigned short sector_size);
 
 //Verifica o offset do setor na seção de dados
-unsigned find_offset_sector_data(unsigned int sector, unsigned short sector_size,unsigned reserved_sectors);
-
-//Retorna o offset do bitmap
-unsigned int find_offset_bitmap();
+unsigned find_offset_sector_data(unsigned int sector, BootRecord boot_record);
 
 //Vai verificar um offset no diretório onde pode armazenar um novo atributo do arquivo/diretório
 unsigned int find_offset_data(unsigned int sector, unsigned short sector_size, unsigned sector_number);
+
+//Retorna o offset para leitura dos atributos
+unsigned find_offset_attribute_file(FILE *disk,BootRecord boot_record, unsigned sector_number_dir,unsigned short pos_file);
 
 //Vai até o setor do diretório e escreve o atributo do arquivo/diretório
 bool alocate_attribute_to_directory(FILE *disk, BootRecord boot_record, unsigned int sector_number, FileFormat *file_format);
@@ -89,10 +89,17 @@ unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_
 vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned long long int file_size);
 
 //copia um arquivo para o sistema de arquivos
-bool copy_file(FILE *disk, BootRecord boot_record,  string filename);
+bool copy_file_to_exBAU(FILE *disk, BootRecord boot_record,  string filename);
 
-//Faz a leitura de um arquivo/diretório do sistema de arquivos
-void read_sector(FILE *disk, BootRecord boot_record,unsigned int sector_number, bool directory);
+//Copia um arquivo do exBAU para o PC do usuário    
+bool copy_file_to_system(FILE *disk,BootRecord boot_record, unsigned offset_file, string filename);
+
+/*
+    Faz a leitura de um arquivo/diretório do sistema de arquivos
+    Sector_dir é o setor do diretório atual que está o atributo do arquivo ou que deve ser lido
+    Caso o pos_file seja 0, significa que é um diretório (pos_file começa em 1)
+*/
+void read_sector(FILE *disk, BootRecord boot_record, unsigned sector_dir,unsigned short pos_file);
 
 /* 
     Deleta um arquivo/diretório do sistema de arquivos
