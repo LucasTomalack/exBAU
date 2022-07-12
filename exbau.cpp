@@ -356,7 +356,7 @@ vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned l
     return available_sectors;
 }
 
-bool copy_file_to_exBAU(FILE *disk, BootRecord boot_record,  string filename){
+bool copy_file_to_exBAU(FILE *disk, BootRecord boot_record,  string filename, unsigned int dir_sector){
     //Vai separar o nome com a extensão do arquivo
     string file_name = filename.substr(0, filename.find_last_of("."));
     string file_extension = filename.substr(filename.find_last_of(".")+1);
@@ -420,7 +420,7 @@ bool copy_file_to_exBAU(FILE *disk, BootRecord boot_record,  string filename){
     
     
     FileFormat data = new_file_format(file_name.c_str(), file_extension.c_str(), FILE_ATTRIBUTE, alocated_sectors[0], file_size);
-    bool a = alocate_attribute_to_directory(disk,boot_record,0,&data);
+    bool a = alocate_attribute_to_directory(disk, boot_record, dir_sector, &data);
     return true;
 }
 
@@ -567,9 +567,9 @@ void read_sector(FILE *disk, BootRecord boot_record, unsigned sector_dir,unsigne
                 cout << "Nome: " << file_format.filename << "." << file_format.ext << endl;
                 cout << "Tamanho: " << file_format.size << " bytes" << endl;
             }
-            else cout << "Nome: " << file_format.filename << endl;
+            else cout << "Nome: " << file_format.filename << " | ";
             cout << "Tipo: " << (file_format.attribute == FILE_ATTRIBUTE ? "Arquivo" : "Diretório") << endl;
-            cout << "Setor inicial: " << file_format.first_sector << endl;
+            // cout << "Setor inicial: " << file_format.first_sector << endl;
             cout << endl;
         }
         unsigned next_sector_number = next_sector(disk,boot_record,sector_dir);
@@ -625,4 +625,140 @@ void read_sector(FILE *disk, BootRecord boot_record, unsigned sector_dir,unsigne
         cout << endl;
         return;
     }
+}
+
+unsigned int find_pos(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir, unsigned char attribute){
+    fseek(disk, find_offset_sector_data(sector_dir, boot_record), SEEK_SET);
+    FileFormat file_format;
+    unsigned short pos=0;
+    do
+    {
+        fread(&file_format, sizeof(FileFormat), 1, disk);
+        pos++;
+    } while (strcmp(file_format.filename, name) && file_format.attribute != attribute);
+    if(attribute == FILE_ATTRIBUTE)
+        return pos;
+    else
+        return file_format.first_sector;
+}
+
+void main_menu(FILE *disk){
+    // FORMATADOR (PARAMETRO: TAMANHO EM SETORES DO ARQUIVO)
+    BootRecord boot_record;
+    bool is_formated;
+    system("clear");
+    while (true)
+    {
+        boot_record = read_boot_record(disk); 
+        is_formated = (boot_record.code == BOOT_CODE);
+
+        cout << "============== Sistema de Arquivos exBAU ==============" << endl;
+        cout << "Menu Principal:" << endl;
+        cout << "0 - Sair" << endl;
+        cout << "1 - Formatar volume" << endl;
+        if (is_formated)
+            cout << "2 - Navegar no sistema" << endl;
+        short option;
+        cin >> option;
+        switch (option)
+        {
+        case 0:
+            exit(EXIT_SUCCESS);
+            break;
+        
+        case 1:
+            system("clear");
+            int setores;
+            cout << "Para formatar o volume inteiro digite 0.\nDigite quantos setores(512B) o volume possui: ";
+            cin >> setores;
+            format_disk(disk, setores); 
+            break;
+        case 2:
+            if(!is_formated){
+                cerr << "Não é possível navegar em um volume não formatado!";
+                break;
+            }
+            navigation_menu(disk, boot_record);
+            // navegar nos diretórios
+        }
+    }
+    
+}
+
+void navigation_menu(FILE *disk, BootRecord boot_record){
+    unsigned int current_dir = 0; // root dir
+    while (true)
+    {
+        cout << "\n\n";
+        cout << "============== Sistema de Arquivos exBAU ==============" << endl;
+        cout << "Menu de navegação:" << endl;
+        cout << "0 - Sair" << endl;
+        cout << "1 - Listar diretório atual" << endl;
+        cout << "2 - Exibir arquivo" << endl;
+        cout << "3 - Acessar subdiretório" << endl;
+        cout << "4 - Copiar arquivo para o diretório atual" << endl;
+        cout << "5 - Copiar arquivo para o disco" << endl;
+        cout << "6 - Criar subdiretório no diretório atual" << endl;
+         
+        short option;
+        cin >> option;
+        switch (option)
+        {
+            case 0:
+                return;
+                break;
+        
+            case 1:
+                read_sector(disk, boot_record, current_dir, 0);
+                break;
+
+            case 2: {
+                string arq;
+                cout << "Digite o nome do arquivo da listagem que deseja exibir (sem a extensão): ";
+                cin >> arq;
+                unsigned short pos = find_pos(disk, boot_record, arq.c_str(), current_dir, FILE_ATTRIBUTE);
+                cout << "\nConteúdo do arquivo:\n" << endl;
+                read_sector(disk, boot_record, current_dir, pos);
+                cout << endl;
+                break;
+            }
+        
+            case 3:{ // aparentemente nao funciona
+                string dir;
+                cout << "Digite o nome do diretório da listagem que deseja acessar: ";
+                cin >> dir;
+                unsigned int next_dir = find_pos(disk, boot_record, dir.c_str(), current_dir, DIRECTORY_ATTRIBUTE);
+                current_dir = next_dir;
+                system("clear");
+                break;
+            }
+            case 4:{
+                string filename;
+                cout << "Digite o nome do arquivo que deseja copiar: " ;
+                cin >> filename;
+                if(!copy_file_to_exBAU(disk, boot_record, filename, current_dir))
+                    cerr << "Falha ao copiar arquivo!" << endl;
+                break;
+            }
+            case 5:{
+
+            }
+            case 6:{
+                string new_dir_name;
+                cout << "Digite o nome do novo diretório: ";
+                cin >> new_dir_name;
+                if(alocate_dir(disk, boot_record, current_dir, new_dir_name) == 0)
+                    cerr << "Erro ao criar novo diretório!" << endl;
+                break;
+            }
+        }
+    }
+    
+    // CÓPIA DE ARQUIVO DISCO -> SISTEMA
+
+    // CÓPIA DE ARQUIVO SISTEMA -> DISCO
+
+    // LISTAGEM DOS ARQUIVOS (NAVEGAÇÃO)
+
+    // CRIAÇÃO DE DIRETÓRIOS
 }
