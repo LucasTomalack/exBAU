@@ -106,3 +106,6 @@ void read_sector(FILE *disk, BootRecord boot_record, unsigned sector_dir,unsigne
     offset deve ser passado o offset dos atributos do arquivo/diretório (para fazer a leitura dos dados)
 */
 bool delete_file(FILE *disk, BootRecord boot_record, unsigned sector_diretory);
+
+//Desaloca um setor da lista
+bool delete_sector(FILE *disk, BootRecord boot_record, unsigned prev_sector, unsigned sector);

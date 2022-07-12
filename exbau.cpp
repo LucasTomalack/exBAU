@@ -511,6 +511,22 @@ bool delete_file(FILE *disk, BootRecord boot_record, unsigned offset){
     return true;
 }
 
+bool delete_sector(FILE *disk, BootRecord boot_record,unsigned prev_sector, unsigned sector){
+    unsigned offset = find_offset_sector_data(sector,boot_record);
+    unsigned offset_prev = find_offset_sector_data(prev_sector,boot_record);
+    unsigned next_sector_number = next_sector(disk,boot_record,sector);
+
+    unsigned pointer_offset = boot_record.sector_size-sizeof(unsigned int);
+
+    if(prev_sector!=-1){
+        fseek(disk,offset_prev+pointer_offset,SEEK_SET);
+        fwrite(&next_sector_number,sizeof(unsigned),1,disk);
+    }
+    manage_sector_BitMap(disk,boot_record,sector,false);
+    
+    return true;
+}
+
 unsigned int next_sector(FILE *disk, BootRecord boot_record, unsigned int sector_number)
 {
     unsigned int next_sector;
