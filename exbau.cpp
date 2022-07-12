@@ -370,6 +370,7 @@ bool copy_file_to_exBAU(FILE *disk, BootRecord boot_record,  string filename, un
     FILE *file_to_copy = fopen(filename.c_str(), "r");
     if(file_to_copy == NULL){
         cerr << "Erro ao abrir arquivo!" << endl;
+        return false;
     }
 
     //verifica se há espaço disponível para o arquivo no sistema de arquivos
@@ -627,7 +628,18 @@ void read_sector(FILE *disk, BootRecord boot_record, unsigned sector_dir,unsigne
     }
 }
 
-unsigned int find_pos(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir, unsigned char attribute){
+unsigned int find_cluster_dir(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir){
+    fseek(disk, find_offset_sector_data(sector_dir, boot_record), SEEK_SET);
+    FileFormat file_format;
+    do
+    {
+        fread(&file_format, sizeof(FileFormat), 1, disk); 
+    } while ((strcmp(file_format.filename, name)!=0));
+    
+    return file_format.first_sector;
+}
+
+unsigned short find_pos_file(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir){
     fseek(disk, find_offset_sector_data(sector_dir, boot_record), SEEK_SET);
     FileFormat file_format;
     unsigned short pos=0;
@@ -635,11 +647,9 @@ unsigned int find_pos(FILE *disk, BootRecord boot_record, const char *name, unsi
     {
         fread(&file_format, sizeof(FileFormat), 1, disk);
         pos++;
-    } while (strcmp(file_format.filename, name) && file_format.attribute != attribute);
-    if(attribute == FILE_ATTRIBUTE)
-        return pos;
-    else
-        return file_format.first_sector;
+    } while ((strcmp(file_format.filename, name)!=0));
+    
+    return pos;
 }
 
 void main_menu(FILE *disk){
@@ -716,18 +726,18 @@ void navigation_menu(FILE *disk, BootRecord boot_record){
                 string arq;
                 cout << "Digite o nome do arquivo da listagem que deseja exibir (sem a extensão): ";
                 cin >> arq;
-                unsigned short pos = find_pos(disk, boot_record, arq.c_str(), current_dir, FILE_ATTRIBUTE);
+                unsigned short pos = find_pos_file(disk, boot_record, arq.c_str(), current_dir);
                 cout << "\nConteúdo do arquivo:\n" << endl;
                 read_sector(disk, boot_record, current_dir, pos);
                 cout << endl;
                 break;
             }
         
-            case 3:{ // aparentemente nao funciona
+            case 3:{ 
                 string dir;
                 cout << "Digite o nome do diretório da listagem que deseja acessar: ";
                 cin >> dir;
-                unsigned int next_dir = find_pos(disk, boot_record, dir.c_str(), current_dir, DIRECTORY_ATTRIBUTE);
+                unsigned int next_dir = find_cluster_dir(disk, boot_record, dir.c_str(), current_dir);
                 current_dir = next_dir;
                 system("clear");
                 break;
@@ -753,12 +763,5 @@ void navigation_menu(FILE *disk, BootRecord boot_record){
             }
         }
     }
-    
-    // CÓPIA DE ARQUIVO DISCO -> SISTEMA
-
     // CÓPIA DE ARQUIVO SISTEMA -> DISCO
-
-    // LISTAGEM DOS ARQUIVOS (NAVEGAÇÃO)
-
-    // CRIAÇÃO DE DIRETÓRIOS
 }

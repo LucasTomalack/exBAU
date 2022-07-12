@@ -114,8 +114,11 @@ bool delete_file(FILE *disk, BootRecord boot_record, unsigned sector_diretory);
 //Desaloca um setor da lista
 bool delete_sector(FILE *disk, BootRecord boot_record, unsigned prev_sector, unsigned sector);
 
-//Encontra, pelo nome, a posiçao de um arquivo/diretório na listagem de um diretório 
-unsigned int find_pos(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir, unsigned char attribute);
+//Busca um subdiretório pelo nome em um diretório e retorna o seu primeiro cluster de um diretorio 
+unsigned int find_cluster_dir(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir);
+
+//Encontra, pelo nome, a posiçao de um arquivo na listagem de um diretório 
+unsigned short find_pos_file(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir);
 
 // Menu principal para utilizar o sistema de arquivos
 void main_menu(FILE *disk);
