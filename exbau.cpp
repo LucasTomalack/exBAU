@@ -1,6 +1,9 @@
 #include "exbau.hpp"
+#include <stdlib.h>
 #include <vector>
 #include <string.h>
+
+using namespace std;
 
 BootRecord read_boot_record(FILE *disk){
     BootRecord boot_record;
@@ -135,6 +138,7 @@ void format_disk (FILE *disk,unsigned number_sectors){
 
     BootRecord boot_record;
     boot_record.sector_size = 512;
+    boot_record.code = BOOT_CODE;
 
     if(number_sectors==0){
        file_size = ftell(disk); 

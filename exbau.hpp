@@ -12,6 +12,7 @@ typedef struct BootRecord
     unsigned short sector_size;
     unsigned short reserved_sectors;
     unsigned int total_sectors;
+    int code;
 }__attribute__((packed)) BootRecord;
 
 typedef struct FileFormat
@@ -23,6 +24,9 @@ typedef struct FileFormat
     unsigned long long int size;
 }__attribute__((packed)) FileFormat;
 using namespace std;
+
+// Auxiliar para o boot
+#define BOOT_CODE 0x0A0B0C
 
 //Auxiliar para os atributos dos arquivos
 #define FILE_ATTRIBUTE 0x20
