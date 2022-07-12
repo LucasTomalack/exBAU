@@ -96,7 +96,7 @@ vector<unsigned int> alocate_file(FILE *disk, BootRecord boot_record, unsigned l
 bool copy_file_to_exBAU(FILE *disk, BootRecord boot_record,  string filename);
 
 //Copia um arquivo do exBAU para o PC do usuário    
-bool copy_file_to_system(FILE *disk,BootRecord boot_record, unsigned offset_file, string filename);
+bool copy_file_to_system(FILE *disk,BootRecord boot_record, FileFormat data);
 
 /*
     Faz a leitura de um arquivo/diretório do sistema de arquivos
@@ -114,8 +114,8 @@ bool delete_file(FILE *disk, BootRecord boot_record, unsigned sector_diretory);
 //Desaloca um setor da lista
 bool delete_sector(FILE *disk, BootRecord boot_record, unsigned prev_sector, unsigned sector);
 
-//Busca um subdiretório pelo nome em um diretório e retorna o seu primeiro cluster de um diretorio 
-unsigned int find_cluster_dir(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir);
+//Busca um arquivo/diretório pelo nome em um diretório e retorna o seu formato de arquivo
+FileFormat find_format_dir(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir);
 
 //Encontra, pelo nome, a posiçao de um arquivo na listagem de um diretório 
 unsigned short find_pos_file(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir);

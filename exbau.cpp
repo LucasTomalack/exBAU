@@ -425,12 +425,12 @@ bool copy_file_to_exBAU(FILE *disk, BootRecord boot_record,  string filename, un
     return true;
 }
 
-bool copy_file_to_system(FILE *disk, BootRecord boot_record,unsigned offset_file, string filename){
-    FileFormat data;
-
-    fseek(disk,offset_file,SEEK_SET);
-    fread(&data,sizeof(FileFormat),1,disk);
-    FILE *disk2 = fopen(filename.c_str(),"w+");
+bool copy_file_to_system(FILE *disk, BootRecord boot_record, FileFormat data){
+    string name;
+    name.append(data.filename);
+    name.append(".");
+    name.append(data.ext);
+    FILE *disk2 = fopen(name.c_str(),"w+");
 
     if(disk2==NULL){
         cerr << "Erro ao copiar o arquivo" << endl;
@@ -628,7 +628,7 @@ void read_sector(FILE *disk, BootRecord boot_record, unsigned sector_dir,unsigne
     }
 }
 
-unsigned int find_cluster_dir(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir){
+FileFormat find_format_dir(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir){
     fseek(disk, find_offset_sector_data(sector_dir, boot_record), SEEK_SET);
     FileFormat file_format;
     do
@@ -636,7 +636,7 @@ unsigned int find_cluster_dir(FILE *disk, BootRecord boot_record, const char *na
         fread(&file_format, sizeof(FileFormat), 1, disk); 
     } while ((strcmp(file_format.filename, name)!=0));
     
-    return file_format.first_sector;
+    return file_format;
 }
 
 unsigned short find_pos_file(FILE *disk, BootRecord boot_record, const char *name, unsigned sector_dir){
@@ -737,8 +737,8 @@ void navigation_menu(FILE *disk, BootRecord boot_record){
                 string dir;
                 cout << "Digite o nome do diretório da listagem que deseja acessar: ";
                 cin >> dir;
-                unsigned int next_dir = find_cluster_dir(disk, boot_record, dir.c_str(), current_dir);
-                current_dir = next_dir;
+                FileFormat next_dir = find_format_dir(disk, boot_record, dir.c_str(), current_dir);
+                current_dir = next_dir.first_sector;
                 system("clear");
                 break;
             }
@@ -751,7 +751,13 @@ void navigation_menu(FILE *disk, BootRecord boot_record){
                 break;
             }
             case 5:{
-
+                string to_copy;
+                cout << "Digite o nome do arquivo que deseja copiar (sem a extensão): ";
+                cin >> to_copy;
+                FileFormat file = find_format_dir(disk, boot_record, to_copy.c_str(), current_dir);
+                if(!copy_file_to_system(disk, boot_record, file))
+                    cerr << "Erro ao copiar arquivo!" << endl;
+                break;
             }
             case 6:{
                 string new_dir_name;
@@ -763,5 +769,4 @@ void navigation_menu(FILE *disk, BootRecord boot_record){
             }
         }
     }
-    // CÓPIA DE ARQUIVO SISTEMA -> DISCO
 }
