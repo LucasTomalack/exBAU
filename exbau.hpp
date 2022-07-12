@@ -8,7 +8,7 @@ typedef unsigned int Sector;
 
 typedef struct BootRecord
 {
-    unsigned long int volume_size;
+    unsigned long long int volume_size;
     unsigned short sector_size;
     unsigned short reserved_sectors;
     unsigned int total_sectors;

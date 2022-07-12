@@ -20,19 +20,18 @@ bool write_boot_record(FILE *disk, BootRecord boot_record){
 
 bool create_Block_BitMap(FILE *disk,  BootRecord *boot_record){
     //Verifica quantos setores da seção de dados pode ser mapeado em um setor de bitmap
-    int t = 8 * boot_record->sector_size;
+    unsigned int t = 8 * boot_record->sector_size;
 
     //Remove um setor para o boot record
-    int total_sectors = boot_record->total_sectors -1;
+    unsigned int total_sectors = boot_record->total_sectors -1;
 
     //Verifica o número de setores que serão mapeados em um setor de bitmap
-    int sector_to_ManagerFree= round(total_sectors/t);
+    unsigned short sector_to_ManagerFree;
 
-    //Se o disco for muito pequeno a fórmula pode dar erro
-    //Caso seja o caso, automaticamente será setado um setor para o gerenciamento de espaço livre
-    if(sector_to_ManagerFree == 0){
-        sector_to_ManagerFree = 1;
-    }
+    if(total_sectors % t == 0)
+        sector_to_ManagerFree = total_sectors / t;
+    else
+        sector_to_ManagerFree =( total_sectors / t) + 1;
 
     int seek_position = find_offset_sector(1, boot_record->sector_size);
 
@@ -296,6 +295,7 @@ unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_
     byte_ B;
     //Verifica algum setor livre
     unsigned int available_sector = find_free_sector(disk, boot_record);
+
     if(directoryname.size()>15){
         cerr << "Nome do diretório muito longo" << endl;
         return -1;
@@ -309,6 +309,8 @@ unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_
     //Marca como ocupado
     manage_sector_BitMap(disk, boot_record, available_sector, true);
 
+    unsigned short count_max_directories = (boot_record.sector_size-sizeof(unsigned int))/sizeof(FileFormat);
+    
     //marca o ponteiro no final do setor ocupado pelo novo diretório
     fseek(disk, find_offset_sector_data(available_sector, boot_record) + 508, SEEK_SET);
     unsigned int ending_pointer = LAST_QUEUE_SECTOR;
@@ -316,17 +318,32 @@ unsigned int alocate_dir (FILE *disk, BootRecord boot_record, unsigned int prev_
 
     //cria os diretórios para navegação ("." e "..")
     FileFormat dot = new_file_format(".","",0x10, available_sector, 0);
-    FileFormat dot2 = new_file_format("..","",0x10, prev_dir_sector, 0);
     fseek(disk, find_offset_sector_data(available_sector, boot_record), SEEK_SET);
     fwrite(&dot, sizeof(FileFormat), 1, disk);
 
+
     //Só vai criar o diretório ".." se o diretório não for o root
     if(available_sector!=0){
+        FileFormat dot2 = new_file_format("..","",0x10, prev_dir_sector, 0);
         fwrite(&dot2, sizeof(FileFormat), 1, disk);
         
         FileFormat new_dir = new_file_format(directoryname.c_str(),"",DIRECTORY_ATTRIBUTE, available_sector, 0);
         alocate_attribute_to_directory(disk, boot_record, prev_dir_sector, &new_dir);
+        
+        //Vai remover da contagem máximo de arquivos por setor os dois diretórios criados (. e ..)
+        count_max_directories -=2;
     }
+    //Se não, só remove um
+    else count_max_directories--;
+
+
+    //Vai setar os atributos de todos os diretórios como "vazios", para que possam ser criados novos arquivos
+    FileFormat empty_dir = new_file_format("","",LAST_FILE_ATTRIBUTE, 0, 0);
+    // unsigned char attribute = LAST_FILE_ATTRIBUTE;
+    for(int i=1;i<=count_max_directories;i++){
+        fwrite(&empty_dir, sizeof(FileFormat), 1, disk);   
+    }
+    
     return available_sector;
 }
 
