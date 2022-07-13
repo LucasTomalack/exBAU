@@ -660,12 +660,18 @@ unsigned short find_pos_file(FILE *disk, BootRecord boot_record, const char *nam
     fseek(disk, find_offset_sector_data(sector_dir, boot_record), SEEK_SET);
     FileFormat file_format;
     unsigned short pos=0;
+    unsigned short max_files_per_sector = (boot_record.sector_size-sizeof(unsigned int))/sizeof(FileFormat);
     do
     {
         fread(&file_format, sizeof(FileFormat), 1, disk);
         pos++;
-    } while ((strcmp(file_format.filename, name)!=0));
-    
+    } while ((strcmp(file_format.filename, name)!=0) && pos<max_files_per_sector);
+
+    if(pos==max_files_per_sector)
+    {
+        cout << "Arquivo não encontrado" << endl;
+        return 0;
+    }
     return pos;
 }
 
@@ -744,6 +750,8 @@ void navigation_menu(FILE *disk, BootRecord boot_record){
                 cout << "Digite o nome do arquivo da listagem que deseja exibir (sem a extensão): ";
                 cin >> arq;
                 unsigned short pos = find_pos_file(disk, boot_record, arq.c_str(), current_dir);
+                if(pos==0)
+                    break;
                 cout << "\nConteúdo do arquivo:\n" << endl;
                 read_sector(disk, boot_record, current_dir, pos);
                 cout << endl;
